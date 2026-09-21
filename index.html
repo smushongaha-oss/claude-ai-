@@ -310,11 +310,15 @@
 </div>
 
 <script>
-const APP_ID = 1089;
+const APP_ID = 1089; // only used by the legacy endpoints
+
+// Tried in order. Moves to the next host when a host fails before delivering any data.
 const WS_ENDPOINTS = [
-  'wss://ws.derivws.com/websockets/v3',
-  'wss://ws.binaryws.com/websockets/v3'
+  { name: 'api.derivws.com (new public API)', short: 'new API',        url: 'wss://api.derivws.com/trading/v1/options/ws/public',              legacy: false },
+  { name: 'ws.derivws.com (legacy)',          short: 'legacy derivws', url: `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`,             legacy: true  },
+  { name: 'ws.binaryws.com (legacy)',         short: 'legacy binary',  url: `wss://ws.binaryws.com/websockets/v3?app_id=${APP_ID}`,            legacy: true  }
 ];
+
 const GRAN_H1 = 3600;
 const GRAN_M1 = 60;
 const ATR_PERIOD = 14;
@@ -325,6 +329,7 @@ const PING_MS = 30 * 1000;
 const STALE_MS = 45 * 1000;
 
 let ws;
+let currentEp = WS_ENDPOINTS[0];
 let endpointIdx = 0;
 let failCount = 0;
 let pingTimer = null;
@@ -359,6 +364,8 @@ const FALLBACK_SYMBOLS = [
   { symbol: '1HZ90V',  display_name: 'Volatility 90 (1s) Index' },
   { symbol: '1HZ100V', display_name: 'Volatility 100 (1s) Index' }
 ];
+const KNOWN_NAMES = {};
+FALLBACK_SYMBOLS.forEach(f => { KNOWN_NAMES[f.symbol] = f.display_name; });
 
 const statusDot = document.getElementById('statusDot');
 const statusText = document.getElementById('statusText');
@@ -388,6 +395,7 @@ function setConnState(live, label){
   statusDot.classList.toggle('live', live);
   statusText.textContent = label;
 }
+function liveLabel(){ return 'live · ' + currentEp.short; }
 function ts(){
   return new Date().toLocaleTimeString('en-GB', { hour12: false });
 }
@@ -442,27 +450,31 @@ function drawSpark(){
 initialSymbolSetup(FALLBACK_SYMBOLS);
 
 function connect(){
-  const base = WS_ENDPOINTS[endpointIdx % WS_ENDPOINTS.length];
-  const host = base.replace('wss://', '').split('/')[0];
-  setConnState(false, failCount ? `retrying · ${host}` : 'connecting');
+  const ep = WS_ENDPOINTS[endpointIdx % WS_ENDPOINTS.length];
+  currentEp = ep;
+  setConnState(false, (failCount ? 'retrying · ' : 'connecting · ') + ep.short);
 
   let sock;
   try {
-    sock = new WebSocket(`${base}?app_id=${APP_ID}`);
+    sock = new WebSocket(ep.url);
   } catch (e) {
-    logLine(`WebSocket create failed: ${e.message}`, 'warn');
+    logLine(`WebSocket create failed (${ep.name}): ${e.message}`, 'warn');
     failCount++;
+    endpointIdx++;
     setTimeout(connect, 5000);
     return;
   }
   ws = sock;
+  let gotData = false;
+  const seenTypes = new Set();
 
   sock.onopen = () => {
     lastMsgAt = Date.now();
     setConnState(false, 'loading ' + SYMBOL);
-    logLine(`socket open · ${host}`, 'info');
+    logLine(`socket open · ${ep.name}`, 'info');
     loadSymbol(SYMBOL);
-    wsSend({ active_symbols: "brief", product_type: "basic" });
+    // New API rejects unknown fields, so product_type is only sent to legacy hosts
+    wsSend(ep.legacy ? { active_symbols: "brief", product_type: "basic" } : { active_symbols: "brief" });
     clearInterval(pingTimer);
     pingTimer = setInterval(() => wsSend({ ping: 1 }), PING_MS);
   };
@@ -471,23 +483,38 @@ function connect(){
     lastMsgAt = Date.now();
     let data;
     try { data = JSON.parse(msg.data); } catch (e) { return; }
+
     if (data.error) {
-      console.warn('API error:', data.error.message, data.echo_req);
-      logLine(`API error: ${data.error.message}`, 'warn');
-      if (!dataReceived) setConnState(false, 'error: ' + data.error.message);
+      const er = data.echo_req || {};
+      const req = er.ticks_history ? 'ticks_history' : er.ticks ? 'ticks' : er.active_symbols ? 'active_symbols' : 'request';
+      const code = data.error.code ? data.error.code + ': ' : '';
+      logLine(`API error (${req}) ${code}${data.error.message}`, 'warn');
+      console.warn('API error:', data.error, data.echo_req);
+      if (!dataReceived && req !== 'active_symbols') setConnState(false, 'error: ' + data.error.message);
       return;
     }
+
+    gotData = true;
     failCount = 0;
+    if (data.msg_type && !seenTypes.has(data.msg_type)) {
+      seenTypes.add(data.msg_type);
+      logLine(`rx ${data.msg_type}`, 'info');
+    }
+
     if (data.msg_type === "active_symbols") {
-      upgradeDropdownFromLive(data.active_symbols);
+      upgradeDropdownFromLive(data.active_symbols || []);
       return;
     }
-    if (data.msg_type === "candles") {
-      const gran = data.echo_req.granularity;
+
+    if (data.msg_type === "candles" && Array.isArray(data.candles)) {
       const mapped = data.candles.map(c => ({
         open: parseFloat(c.open), high: parseFloat(c.high),
         low: parseFloat(c.low), close: parseFloat(c.close), epoch: c.epoch
       }));
+      let gran = data.echo_req && data.echo_req.granularity;
+      if (gran === undefined || gran === null) {
+        gran = mapped.length > 1 ? mapped[1].epoch - mapped[0].epoch : null;
+      }
       if (gran === GRAN_H1) { h1Candles = mapped; recomputeH1(); }
       else if (gran === GRAN_M1) {
         m1Candles = mapped;
@@ -498,10 +525,14 @@ function connect(){
         }
       }
       dataReceived = true;
-      setConnState(true, 'live');
+      setConnState(true, liveLabel());
     }
-    if (data.msg_type === "tick" && data.tick.symbol === SYMBOL) {
+
+    if (data.msg_type === "tick" && data.tick) {
+      const tsym = data.tick.underlying_symbol || data.tick.symbol;
+      if (tsym && tsym !== SYMBOL) return;
       const price = parseFloat(data.tick.quote);
+      if (!Number.isFinite(price)) return;
       const epoch = data.tick.epoch;
       const candleEpoch = Math.floor(epoch / GRAN_M1) * GRAN_M1;
       const last = m1Candles[m1Candles.length - 1];
@@ -514,7 +545,7 @@ function connect(){
         if (m1Candles.length > 300) m1Candles.shift();
       }
       dataReceived = true;
-      setConnState(true, 'live');
+      setConnState(true, liveLabel());
       recomputeM1();
     }
   };
@@ -525,11 +556,11 @@ function connect(){
     subscribedTicks = false;
     dataReceived = false;
     failCount++;
-    if (failCount % 2 === 0) endpointIdx++; // rotate host after 2 failures
+    if (!gotData) endpointIdx++;           // never worked → try the next host
     const detail = `code ${e.code}${e.reason ? ' ' + e.reason : ''}`;
-    setConnState(false, `reconnecting · ${detail} · try ${failCount}`);
-    logLine(`socket closed (${detail}) on ${host} — retrying`, 'warn');
-    setTimeout(connect, Math.min(3000 * failCount, 15000));
+    setConnState(false, `reconnecting · ${detail} · ${ep.short}`);
+    logLine(`socket closed (${detail}) on ${ep.name} — ${gotData ? 'retrying same host' : 'trying next host'}`, 'warn');
+    setTimeout(connect, Math.min(2000 * failCount, 10000));
   };
 
   sock.onerror = () => { try { sock.close(); } catch (e) {} };
@@ -553,10 +584,16 @@ function buildDropdownOptions(list){
   });
   symbolSelect.disabled = false;
 }
+// Accepts both legacy (symbol / display_name) and new-API (underlying_symbol) shapes
 function sortVolList(symbols){
   return symbols
-    .filter(s => /^Volatility/i.test(s.display_name))
-    .map(s => ({ symbol: s.symbol, name: s.display_name, is1s: /\(1s\)/i.test(s.display_name), num: parseInt(s.display_name.replace(/\D+/g, ''), 10) || 0 }))
+    .map(s => {
+      const sym = s.underlying_symbol || s.symbol;
+      const name = s.display_name || KNOWN_NAMES[sym] || '';
+      return { symbol: sym, name };
+    })
+    .filter(s => s.symbol && /^Volatility/i.test(s.name))
+    .map(s => ({ symbol: s.symbol, name: s.name, is1s: /\(1s\)/i.test(s.name), num: parseInt(s.name.replace(/\D+/g, ''), 10) || 0 }))
     .sort((a, b) => (a.is1s - b.is1s) || (a.num - b.num));
 }
 function initialSymbolSetup(symbols){
