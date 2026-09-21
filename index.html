@@ -52,7 +52,8 @@
   .pnl-hero .v{font-size:34px;font-weight:700;color:var(--green);text-shadow:0 0 18px rgba(61,220,132,.35);line-height:1.1;}
   .pnl-hero .m{font-size:10px;color:var(--muted);margin-top:2px;}
   .conn{display:flex;justify-content:flex-end;align-items:center;gap:8px;font-size:11px;color:var(--muted);}
-  .status-dot{width:8px;height:8px;border-radius:50%;background:var(--red);box-shadow:0 0 6px currentColor;}
+  #statusText{text-align:right;min-width:0;overflow-wrap:anywhere;}
+  .status-dot{flex:0 0 8px;width:8px;height:8px;border-radius:50%;background:var(--red);box-shadow:0 0 6px currentColor;}
   .status-dot.live{background:var(--green);}
   .grid{
     display:grid;
@@ -62,6 +63,7 @@
     min-height:0;
   }
   .left,.center,.right,.bottom-l,.bottom-r{min-width:0;min-height:0;}
+  .bottom-l{grid-column:1 / 3;}
   .panel{padding:12px;overflow:auto;}
   .sec{font-size:10px;letter-spacing:2px;color:var(--cyan-dim);margin:0 0 8px;}
   .row{display:flex;justify-content:space-between;gap:8px;font-size:11px;color:var(--muted);margin:4px 0;}
@@ -92,6 +94,8 @@
   button:hover{filter:brightness(1.15);}
   .controls{display:grid;gap:7px;margin-bottom:10px;}
   .split{display:grid;grid-template-columns:1fr 1fr;gap:7px;}
+  .dual{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .dual > div{min-width:0;}
   svg.gauge{display:block;width:100%;height:auto;}
   .needle{transition:transform .6s cubic-bezier(.4,1.4,.4,1);}
   .spark-wrap{height:180px;position:relative;border:1px solid var(--line);border-radius:8px;background:#040b12;margin:6px 0 10px;}
@@ -123,9 +127,26 @@
   .fills{font-size:10px;}
   .fill{display:grid;grid-template-columns:52px 1fr 70px 70px;gap:6px;padding:4px 0;border-bottom:1px solid #0e2430;color:var(--muted);}
   .footer-note{font-size:10px;color:var(--muted);line-height:1.55;padding:8px 4px 4px;}
+
+  /* ---- Tablet / phone: single column ---- */
   @media (max-width:1100px){
-    .topbar,.grid{grid-template-columns:1fr;}
-    .grid{grid-template-rows:auto;}
+    .topbar{grid-template-columns:1fr;}
+    .grid{
+      grid-template-columns:minmax(0,1fr);
+      grid-template-rows:none;
+      grid-auto-rows:auto;
+    }
+    .bottom-l{grid-column:auto;}
+    .panel{overflow:visible;}
+    .bottom-l .log{max-height:220px;overflow:auto;}
+    .conn{justify-content:flex-start;}
+    #statusText{text-align:left;}
+    select,input,button{font-size:16px;} /* stops iOS zoom-on-focus */
+  }
+  /* ---- Phone: stack the two gauges ---- */
+  @media (max-width:700px){
+    .dual{grid-template-columns:1fr;}
+    .pnl-hero .v{font-size:30px;}
   }
 </style>
 </head>
@@ -138,7 +159,7 @@
     </div>
     <div class="pnl-hero">
       <div class="k">SESSION PNL // PAPER TRACKER</div>
-      <div class="v" id="sessionPnl">+$0.00</div>
+      <div class="v" id="sessionPnl">+0.00R</div>
       <div class="m" id="sessionMeta">0 setups · 0 wins · 0 losses</div>
     </div>
     <div class="conn">
@@ -207,7 +228,7 @@
         <svg id="priceSpark" viewBox="0 0 680 180" preserveAspectRatio="none"></svg>
       </div>
 
-      <div class="split" style="grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="dual">
         <div>
           <div class="sec">H1 — STRUCTURE / TREND BIAS</div>
           <div class="row"><span>Last Swing High</span><span class="val" id="h1SwingHigh">—</span></div>
@@ -273,7 +294,7 @@
       </div>
     </aside>
 
-    <section class="panel bottom-l" style="grid-column:1 / 3;">
+    <section class="panel bottom-l">
       <div class="sec">EXECUTION LOG // TOOL CALLS</div>
       <div class="log" id="execLog">waiting for live ticks…</div>
     </section>
@@ -290,14 +311,24 @@
 
 <script>
 const APP_ID = 1089;
+const WS_ENDPOINTS = [
+  'wss://ws.derivws.com/websockets/v3',
+  'wss://ws.binaryws.com/websockets/v3'
+];
 const GRAN_H1 = 3600;
 const GRAN_M1 = 60;
 const ATR_PERIOD = 14;
 const H1_REFRESH_MS = 5 * 60 * 1000;
 const H1_DECAY_PER_BAR = 1.5;
 const M1_DECAY_PER_BAR = 4.5;
+const PING_MS = 30 * 1000;
+const STALE_MS = 45 * 1000;
 
 let ws;
+let endpointIdx = 0;
+let failCount = 0;
+let pingTimer = null;
+let lastMsgAt = Date.now();
 let SYMBOL = null;
 let DISPLAY_NAME = '';
 let h1Candles = [];
@@ -367,6 +398,13 @@ function logLine(text, cls='info'){
   const parts = el.querySelectorAll('div');
   if (parts.length > 80) parts[parts.length - 1].remove();
 }
+function wsSend(obj){
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(obj));
+    return true;
+  }
+  return false;
+}
 function renderSession(){
   const signed = session.pnlR >= 0 ? '+' : '';
   document.getElementById('sessionPnl').textContent = `${signed}${session.pnlR.toFixed(2)}R`;
@@ -404,19 +442,42 @@ function drawSpark(){
 initialSymbolSetup(FALLBACK_SYMBOLS);
 
 function connect(){
-  ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`);
-  ws.onopen = () => {
+  const base = WS_ENDPOINTS[endpointIdx % WS_ENDPOINTS.length];
+  const host = base.replace('wss://', '').split('/')[0];
+  setConnState(false, failCount ? `retrying · ${host}` : 'connecting');
+
+  let sock;
+  try {
+    sock = new WebSocket(`${base}?app_id=${APP_ID}`);
+  } catch (e) {
+    logLine(`WebSocket create failed: ${e.message}`, 'warn');
+    failCount++;
+    setTimeout(connect, 5000);
+    return;
+  }
+  ws = sock;
+
+  sock.onopen = () => {
+    lastMsgAt = Date.now();
     setConnState(false, 'loading ' + SYMBOL);
+    logLine(`socket open · ${host}`, 'info');
     loadSymbol(SYMBOL);
-    ws.send(JSON.stringify({ active_symbols: "brief", product_type: "basic" }));
+    wsSend({ active_symbols: "brief", product_type: "basic" });
+    clearInterval(pingTimer);
+    pingTimer = setInterval(() => wsSend({ ping: 1 }), PING_MS);
   };
-  ws.onmessage = (msg) => {
-    const data = JSON.parse(msg.data);
+
+  sock.onmessage = (msg) => {
+    lastMsgAt = Date.now();
+    let data;
+    try { data = JSON.parse(msg.data); } catch (e) { return; }
     if (data.error) {
       console.warn('API error:', data.error.message, data.echo_req);
+      logLine(`API error: ${data.error.message}`, 'warn');
       if (!dataReceived) setConnState(false, 'error: ' + data.error.message);
       return;
     }
+    failCount = 0;
     if (data.msg_type === "active_symbols") {
       upgradeDropdownFromLive(data.active_symbols);
       return;
@@ -432,7 +493,7 @@ function connect(){
         m1Candles = mapped;
         recomputeM1();
         if (!subscribedTicks) {
-          ws.send(JSON.stringify({ ticks: SYMBOL, subscribe: 1 }));
+          wsSend({ ticks: SYMBOL, subscribe: 1 });
           subscribedTicks = true;
         }
       }
@@ -457,14 +518,30 @@ function connect(){
       recomputeM1();
     }
   };
-  ws.onclose = () => {
-    setConnState(false, 'reconnecting');
+
+  sock.onclose = (e) => {
+    if (sock !== ws) return;               // stale socket, ignore
+    clearInterval(pingTimer);
     subscribedTicks = false;
     dataReceived = false;
-    setTimeout(connect, 3000);
+    failCount++;
+    if (failCount % 2 === 0) endpointIdx++; // rotate host after 2 failures
+    const detail = `code ${e.code}${e.reason ? ' ' + e.reason : ''}`;
+    setConnState(false, `reconnecting · ${detail} · try ${failCount}`);
+    logLine(`socket closed (${detail}) on ${host} — retrying`, 'warn');
+    setTimeout(connect, Math.min(3000 * failCount, 15000));
   };
-  ws.onerror = () => { ws.close(); };
+
+  sock.onerror = () => { try { sock.close(); } catch (e) {} };
 }
+
+// Watchdog: if the feed goes silent (common on mobile Safari after backgrounding), force a reconnect
+setInterval(() => {
+  if (ws && ws.readyState === WebSocket.OPEN && Date.now() - lastMsgAt > STALE_MS) {
+    logLine('feed stale — forcing reconnect', 'warn');
+    ws.close();
+  }
+}, 10000);
 
 function buildDropdownOptions(list){
   symbolSelect.innerHTML = '';
@@ -516,7 +593,7 @@ symbolSelect.addEventListener('change', () => {
 function loadSymbol(sym){
   mainTitle.textContent = `${DISPLAY_NAME} — SNIPER ORCHESTRATOR`;
   subLine.textContent = `${DISPLAY_NAME} · H1 bias · M1 BOS/CHoCH + multi-zone retest`;
-  if (subscribedTicks) ws.send(JSON.stringify({ forget_all: "ticks" }));
+  if (subscribedTicks) wsSend({ forget_all: "ticks" });
   subscribedTicks = false;
   dataReceived = false;
   h1Candles = [];
@@ -535,12 +612,12 @@ function loadSymbol(sym){
   fetchCandles(GRAN_M1, 200);
 }
 function fetchCandles(granularity, count){
-  ws.send(JSON.stringify({
+  wsSend({
     ticks_history: SYMBOL,
     adjust_start_time: 1,
     count, end: "latest",
     granularity, style: "candles"
-  }));
+  });
 }
 
 const notifyBtn = document.getElementById('notifyBtn');
