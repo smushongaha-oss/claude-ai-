@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SNIPER ORCHESTRATOR — P.A.T. + ICT + RETEST</title>
+<title>SNIPER SCANNER — P.A.T. + ICT + RETEST (AUTO)</title>
 <style>
   :root{
     --bg:#03070c;
@@ -57,7 +57,7 @@
   .status-dot.live{background:var(--green);}
   .grid{
     display:grid;
-    grid-template-columns:260px 1fr 280px;
+    grid-template-columns:270px 1fr 280px;
     grid-template-rows:minmax(320px,1fr) 250px;
     gap:10px;
     min-height:0;
@@ -68,17 +68,6 @@
   .sec{font-size:10px;letter-spacing:2px;color:var(--cyan-dim);margin:0 0 8px;}
   .row{display:flex;justify-content:space-between;gap:8px;font-size:11px;color:var(--muted);margin:4px 0;}
   .row .val{color:var(--text);text-align:right;}
-  .agent{
-    border:1px solid var(--line);
-    border-radius:8px;
-    padding:8px 9px;
-    margin-bottom:7px;
-    background:rgba(8,20,30,.6);
-  }
-  .agent .t{display:flex;justify-content:space-between;align-items:center;font-size:12px;}
-  .agent .t b{color:var(--cyan);}
-  .agent .bar{height:3px;background:#0d2230;border-radius:3px;margin-top:6px;overflow:hidden;}
-  .agent .bar > i{display:block;height:100%;background:var(--green);width:40%;}
   label{font-size:10px;letter-spacing:1px;color:var(--muted);}
   select,input,button{
     background:#07141f;
@@ -128,6 +117,23 @@
   .fill{display:grid;grid-template-columns:52px 1fr 70px 70px;gap:6px;padding:4px 0;border-bottom:1px solid #0e2430;color:var(--muted);}
   .footer-note{font-size:10px;color:var(--muted);line-height:1.55;padding:8px 4px 4px;}
 
+  /* scanner list */
+  .scan-status{font-size:10px;color:var(--muted);margin-bottom:4px;}
+  .pin-label{font-size:10px;color:var(--cyan-dim);margin-bottom:8px;}
+  .scan-header,.scan-row{
+    display:grid;grid-template-columns:1fr 30px 30px 68px;gap:4px;align-items:center;
+    font-size:9.5px;padding:4px 2px;border-bottom:1px solid #0e2430;
+  }
+  .scan-header{color:var(--muted);letter-spacing:1px;}
+  .scan-row{color:#8fb4c6;cursor:pointer;}
+  .scan-row span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .scan-row:hover{background:rgba(51,214,255,0.05);}
+  .scan-row.focused{background:rgba(51,214,255,0.10);}
+  .scan-row.r-entry{color:var(--green);}
+  .scan-row.r-armed{color:var(--amber);}
+  .scan-row.r-aligned{color:var(--cyan);}
+  .scan-list{max-height:230px;overflow:auto;margin-bottom:8px;}
+
   /* ---- Tablet / phone: single column ---- */
   @media (max-width:1100px){
     .topbar{grid-template-columns:1fr;}
@@ -139,6 +145,7 @@
     .bottom-l{grid-column:auto;}
     .panel{overflow:visible;}
     .bottom-l .log{max-height:220px;overflow:auto;}
+    .scan-list{max-height:280px;}
     .conn{justify-content:flex-start;}
     #statusText{text-align:left;}
     select,input,button{font-size:16px;} /* stops iOS zoom-on-focus */
@@ -154,8 +161,8 @@
 <div class="shell">
   <header class="topbar">
     <div class="brand">
-      <h1 id="mainTitle">LOADING INSTRUMENT LIST…</h1>
-      <div class="sub" id="subLine">Fetching available volatility indices from Deriv…</div>
+      <h1 id="mainTitle">SNIPER SCANNER — SCANNING…</h1>
+      <div class="sub" id="subLine">Connecting…</div>
     </div>
     <div class="pnl-hero">
       <div class="k">SESSION PNL // PAPER TRACKER</div>
@@ -172,10 +179,6 @@
     <aside class="panel left">
       <div class="sec">ORCHESTRATOR // CONTROLS</div>
       <div class="controls">
-        <div>
-          <label for="symbolSelect">INSTRUMENT</label>
-          <select id="symbolSelect" disabled><option>Loading…</option></select>
-        </div>
         <div class="split">
           <div>
             <label for="lookbackInput">SWING LB</label>
@@ -193,22 +196,15 @@
         <button id="notifyBtn">🔔 ENABLE NOTIFICATIONS</button>
       </div>
 
-      <div class="sec">AGENTS // MODULES</div>
-      <div class="agent">
-        <div class="t"><b>h1-structure</b><span id="h1AgentVal">—</span></div>
-        <div class="row"><span>Price</span><span class="val" id="h1Price">—</span></div>
-        <div class="bar"><i id="h1Bar"></i></div>
+      <div class="sec">SCAN STATUS</div>
+      <div class="scan-status" id="scanCount">0 scanned</div>
+      <div class="pin-label" id="pinLabel">AUTO — tap a row to pin</div>
+
+      <div class="sec">SCANNER // ALL INSTRUMENTS</div>
+      <div class="scan-header">
+        <span>SYM</span><span>H1</span><span>M1</span><span>STATUS</span>
       </div>
-      <div class="agent">
-        <div class="t"><b>m1-sniper</b><span id="m1AgentVal">—</span></div>
-        <div class="row"><span>Price</span><span class="val" id="m1Price">—</span></div>
-        <div class="bar"><i id="m1Bar"></i></div>
-      </div>
-      <div class="agent">
-        <div class="t"><b>retest-zones</b><span id="m1Zones">—</span></div>
-        <div class="row"><span>Last Break</span><span class="val" id="m1BreakType">—</span></div>
-        <div class="row"><span>Liq Sweep</span><span class="val" id="m1Sweep">—</span></div>
-      </div>
+      <div class="scan-list" id="scanBody"></div>
 
       <div class="sec">TELEGRAM ALERTS</div>
       <div class="controls">
@@ -223,7 +219,7 @@
     </aside>
 
     <section class="panel center">
-      <div class="sec">CUMULATIVE PATH // M1 CLOSE</div>
+      <div class="sec">CUMULATIVE PATH // M1 CLOSE — FOCUS INSTRUMENT</div>
       <div class="spark-wrap">
         <svg id="priceSpark" viewBox="0 0 680 180" preserveAspectRatio="none"></svg>
       </div>
@@ -231,6 +227,7 @@
       <div class="dual">
         <div>
           <div class="sec">H1 — STRUCTURE / TREND BIAS</div>
+          <div class="row"><span>Price</span><span class="val" id="h1Price">—</span></div>
           <div class="row"><span>Last Swing High</span><span class="val" id="h1SwingHigh">—</span></div>
           <div class="row"><span>Last Swing Low</span><span class="val" id="h1SwingLow">—</span></div>
           <svg class="gauge" viewBox="0 0 680 300" role="img" aria-label="H1 bias gauge">
@@ -249,8 +246,11 @@
         </div>
         <div>
           <div class="sec">M1 — BOS / RETEST ENTRY</div>
+          <div class="row"><span>Price</span><span class="val" id="m1Price">—</span></div>
           <div class="row"><span>Last Swing High</span><span class="val" id="m1SwingHigh">—</span></div>
           <div class="row"><span>Last Swing Low</span><span class="val" id="m1SwingLow">—</span></div>
+          <div class="row"><span>Last Break</span><span class="val" id="m1BreakType">—</span></div>
+          <div class="row"><span>Liquidity Sweep</span><span class="val" id="m1Sweep">—</span></div>
           <svg class="gauge" viewBox="0 0 680 300" role="img" aria-label="M1 entry gauge">
             <path d="M120,260 A220,220 0 0,1 162,131" fill="none" stroke="#7a1f1f" stroke-width="40"/>
             <path d="M162,131 A220,220 0 0,1 272,51"  fill="none" stroke="#7a4a15" stroke-width="40"/>
@@ -268,7 +268,7 @@
       </div>
 
       <div class="sniper-banner" id="sniperBanner">
-        NO ALIGNMENT — WAIT
+        SCANNING — NO ALIGNED SETUP YET
         <div class="tp-stats" id="tpStats" style="display:none;">
           <div><div class="tp-label">SL</div><div class="tp-value sl-value" id="slStat">—</div></div>
           <div><div class="tp-label">ENTRY</div><div class="tp-value" id="entryStat">—</div></div>
@@ -276,7 +276,7 @@
           <div><div class="tp-label">TP2</div><div class="tp-value" id="tp2Stat">—</div></div>
           <div><div class="tp-label">TP3</div><div class="tp-value" id="tp3Stat">—</div></div>
         </div>
-        <div class="sniper-sub">H1 trend and M1 timing are not agreeing</div>
+        <div class="sniper-sub">Watching instruments for H1/M1 alignment</div>
       </div>
     </section>
 
@@ -302,7 +302,8 @@
       <div class="sec">NOTES</div>
       <div class="footer-note">
         P.A.T. + ICT + Retest monitor only — no orders are sent to Deriv.
-        H1 sets bias. Fresh M1 BOS/CHoCH matching H1 arms a setup. Entry fires on zone touch + confirmation candle.
+        Scans all 13 Volatility instruments at once: H1 sets bias per instrument, a fresh M1 BOS/CHoCH matching that bias arms a setup, entry fires on zone touch + confirmation candle.
+        The dashboard auto-focuses on a live entry, else an armed setup, else the best H1/M1-aligned instrument, else keeps scanning. Tap any row in the scanner list to pin it manually.
         SL and TP1–3 are ATR(14) multiples. Validate in a tester before risking funds.
       </div>
     </section>
@@ -312,11 +313,10 @@
 <script>
 const APP_ID = 1089; // only used by the legacy endpoints
 
-// Tried in order. Moves to the next host when a host fails before delivering any data.
 const WS_ENDPOINTS = [
-  { name: 'api.derivws.com (new public API)', short: 'new API',        url: 'wss://api.derivws.com/trading/v1/options/ws/public',              legacy: false },
-  { name: 'ws.derivws.com (legacy)',          short: 'legacy derivws', url: `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`,             legacy: true  },
-  { name: 'ws.binaryws.com (legacy)',         short: 'legacy binary',  url: `wss://ws.binaryws.com/websockets/v3?app_id=${APP_ID}`,            legacy: true  }
+  { name: 'api.derivws.com (new public API)', short: 'new API',        url: 'wss://api.derivws.com/trading/v1/options/ws/public',   legacy: false },
+  { name: 'ws.derivws.com (legacy)',          short: 'legacy derivws', url: `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`,  legacy: true  },
+  { name: 'ws.binaryws.com (legacy)',         short: 'legacy binary',  url: `wss://ws.binaryws.com/websockets/v3?app_id=${APP_ID}`, legacy: true  }
 ];
 
 const GRAN_H1 = 3600;
@@ -328,28 +328,7 @@ const M1_DECAY_PER_BAR = 4.5;
 const PING_MS = 30 * 1000;
 const STALE_MS = 45 * 1000;
 
-let ws;
-let currentEp = WS_ENDPOINTS[0];
-let endpointIdx = 0;
-let failCount = 0;
-let pingTimer = null;
-let lastMsgAt = Date.now();
-let SYMBOL = null;
-let DISPLAY_NAME = '';
-let h1Candles = [];
-let m1Candles = [];
-let subscribedTicks = false;
-let h1Zone = 'NEUTRAL';
-let m1Zone = 'NEUTRAL';
-let dataReceived = false;
-let lookback = 5;
-let tpStep = 1;
-let slBufferMult = 1;
-let activeTrade = null;
-let pendingSetup = null;
-let session = { setups: 0, wins: 0, losses: 0, pnlR: 0, fills: [] };
-
-const FALLBACK_SYMBOLS = [
+const SCAN_SYMBOLS = [
   { symbol: 'R_10',    display_name: 'Volatility 10 Index' },
   { symbol: 'R_25',    display_name: 'Volatility 25 Index' },
   { symbol: 'R_50',    display_name: 'Volatility 50 Index' },
@@ -364,12 +343,40 @@ const FALLBACK_SYMBOLS = [
   { symbol: '1HZ90V',  display_name: 'Volatility 90 (1s) Index' },
   { symbol: '1HZ100V', display_name: 'Volatility 100 (1s) Index' }
 ];
-const KNOWN_NAMES = {};
-FALLBACK_SYMBOLS.forEach(f => { KNOWN_NAMES[f.symbol] = f.display_name; });
+
+let symbolState = {};
+SCAN_SYMBOLS.forEach(s => {
+  symbolState[s.symbol] = {
+    name: s.display_name,
+    h1Candles: [], m1Candles: [],
+    h1Zone: 'NEUTRAL', m1Zone: 'NEUTRAL',
+    h1Value: 50, m1Value: 50,
+    h1Res: null, m1Res: null, atr: null,
+    pendingSetup: null, activeTrade: null,
+    lastPrice: null
+  };
+});
+
+let ws;
+let currentEp = WS_ENDPOINTS[0];
+let endpointIdx = 0;
+let failCount = 0;
+let pingTimer = null;
+let lastMsgAt = Date.now();
+let subscribedTicksSet = new Set();
+let dataReceived = false;
+let lookback = 5;
+let tpStep = 1;
+let slBufferMult = 1;
+let session = { setups: 0, wins: 0, losses: 0, pnlR: 0, fills: [] };
+
+let focusSymbol = null;
+let focusLevel = null; // 'entry' | 'armed' | 'aligned' | null
+let pinnedSymbol = null;
+let scannerDirty = false;
 
 const statusDot = document.getElementById('statusDot');
 const statusText = document.getElementById('statusText');
-const symbolSelect = document.getElementById('symbolSelect');
 const mainTitle = document.getElementById('mainTitle');
 const subLine = document.getElementById('subLine');
 const lookbackInput = document.getElementById('lookbackInput');
@@ -379,8 +386,10 @@ const slBufferInput = document.getElementById('slBufferInput');
 lookbackInput.addEventListener('change', () => {
   const v = parseInt(lookbackInput.value, 10);
   lookback = Number.isFinite(v) && v >= 2 ? Math.min(15, v) : 5;
-  recomputeH1();
-  recomputeM1();
+  Object.keys(symbolState).forEach(sym => { recomputeSymbolH1(sym); recomputeSymbolM1(sym); });
+  updateFocusSelection();
+  renderFocusAll();
+  scheduleScannerRender();
 });
 tpMultInput.addEventListener('change', () => {
   const v = parseFloat(tpMultInput.value);
@@ -396,21 +405,21 @@ function setConnState(live, label){
   statusText.textContent = label;
 }
 function liveLabel(){ return 'live · ' + currentEp.short; }
-function ts(){
-  return new Date().toLocaleTimeString('en-GB', { hour12: false });
+function ts(){ return new Date().toLocaleTimeString('en-GB', { hour12: false }); }
+function shortSym(name){
+  const is1s = /\(1s\)/i.test(name);
+  const num = (name.match(/\d+/) || [''])[0];
+  return `V${num}${is1s ? '(1s)' : ''}`;
 }
 function logLine(text, cls='info'){
   const el = document.getElementById('execLog');
   const line = `<div class="${cls}">${ts()}  ${text}</div>`;
   el.innerHTML = line + el.innerHTML;
   const parts = el.querySelectorAll('div');
-  if (parts.length > 80) parts[parts.length - 1].remove();
+  if (parts.length > 100) parts[parts.length - 1].remove();
 }
 function wsSend(obj){
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify(obj));
-    return true;
-  }
+  if (ws && ws.readyState === WebSocket.OPEN) { ws.send(JSON.stringify(obj)); return true; }
   return false;
 }
 function renderSession(){
@@ -429,7 +438,8 @@ function renderSession(){
 }
 function drawSpark(){
   const svg = document.getElementById('priceSpark');
-  const src = m1Candles.slice(-120);
+  const st = focusSymbol && symbolState[focusSymbol];
+  const src = st ? st.m1Candles.slice(-120) : [];
   if (src.length < 2) { svg.innerHTML = ''; return; }
   const w = 680, h = 180, pad = 8;
   const ys = src.map(c => c.close);
@@ -447,8 +457,9 @@ function drawSpark(){
   `;
 }
 
-initialSymbolSetup(FALLBACK_SYMBOLS);
-
+//------------------------------------------------------------------
+// Connection
+//------------------------------------------------------------------
 function connect(){
   const ep = WS_ENDPOINTS[endpointIdx % WS_ENDPOINTS.length];
   currentEp = ep;
@@ -459,8 +470,7 @@ function connect(){
     sock = new WebSocket(ep.url);
   } catch (e) {
     logLine(`WebSocket create failed (${ep.name}): ${e.message}`, 'warn');
-    failCount++;
-    endpointIdx++;
+    failCount++; endpointIdx++;
     setTimeout(connect, 5000);
     return;
   }
@@ -470,10 +480,9 @@ function connect(){
 
   sock.onopen = () => {
     lastMsgAt = Date.now();
-    setConnState(false, 'loading ' + SYMBOL);
+    setConnState(false, 'loading symbols');
     logLine(`socket open · ${ep.name}`, 'info');
-    loadSymbol(SYMBOL);
-    // New API rejects unknown fields, so product_type is only sent to legacy hosts
+    loadAllSymbols();
     wsSend(ep.legacy ? { active_symbols: "brief", product_type: "basic" } : { active_symbols: "brief" });
     clearInterval(pingTimer);
     pingTimer = setInterval(() => wsSend({ ping: 1 }), PING_MS);
@@ -486,27 +495,28 @@ function connect(){
 
     if (data.error) {
       const er = data.echo_req || {};
-      const req = er.ticks_history ? 'ticks_history' : er.ticks ? 'ticks' : er.active_symbols ? 'active_symbols' : 'request';
+      const req = er.ticks_history || er.ticks || (er.active_symbols ? 'active_symbols' : 'request');
       const code = data.error.code ? data.error.code + ': ' : '';
       logLine(`API error (${req}) ${code}${data.error.message}`, 'warn');
-      console.warn('API error:', data.error, data.echo_req);
-      if (!dataReceived && req !== 'active_symbols') setConnState(false, 'error: ' + data.error.message);
+      if (!dataReceived) setConnState(false, 'error: ' + data.error.message);
       return;
     }
 
-    gotData = true;
-    failCount = 0;
+    gotData = true; failCount = 0;
     if (data.msg_type && !seenTypes.has(data.msg_type)) {
       seenTypes.add(data.msg_type);
       logLine(`rx ${data.msg_type}`, 'info');
     }
 
     if (data.msg_type === "active_symbols") {
-      upgradeDropdownFromLive(data.active_symbols || []);
+      refineNamesFromLive(data.active_symbols || []);
       return;
     }
 
     if (data.msg_type === "candles" && Array.isArray(data.candles)) {
+      const sym = data.echo_req && data.echo_req.ticks_history;
+      const st = symbolState[sym];
+      if (!st) return;
       const mapped = data.candles.map(c => ({
         open: parseFloat(c.open), high: parseFloat(c.high),
         low: parseFloat(c.low), close: parseFloat(c.close), epoch: c.epoch
@@ -515,48 +525,47 @@ function connect(){
       if (gran === undefined || gran === null) {
         gran = mapped.length > 1 ? mapped[1].epoch - mapped[0].epoch : null;
       }
-      if (gran === GRAN_H1) { h1Candles = mapped; recomputeH1(); }
+      if (gran === GRAN_H1) { st.h1Candles = mapped; recomputeSymbolH1(sym); }
       else if (gran === GRAN_M1) {
-        m1Candles = mapped;
-        recomputeM1();
-        if (!subscribedTicks) {
-          wsSend({ ticks: SYMBOL, subscribe: 1 });
-          subscribedTicks = true;
-        }
+        st.m1Candles = mapped;
+        recomputeSymbolM1(sym);
+        if (!subscribedTicksSet.has(sym)) { subscribeTicksFor(sym); subscribedTicksSet.add(sym); }
       }
       dataReceived = true;
       setConnState(true, liveLabel());
     }
 
     if (data.msg_type === "tick" && data.tick) {
-      const tsym = data.tick.underlying_symbol || data.tick.symbol;
-      if (tsym && tsym !== SYMBOL) return;
+      const sym = data.tick.underlying_symbol || data.tick.symbol;
+      const st = symbolState[sym];
+      if (!st) return;
       const price = parseFloat(data.tick.quote);
       if (!Number.isFinite(price)) return;
+      st.lastPrice = price;
       const epoch = data.tick.epoch;
       const candleEpoch = Math.floor(epoch / GRAN_M1) * GRAN_M1;
-      const last = m1Candles[m1Candles.length - 1];
+      const last = st.m1Candles[st.m1Candles.length - 1];
       if (last && last.epoch === candleEpoch) {
         last.high = Math.max(last.high, price);
         last.low = Math.min(last.low, price);
         last.close = price;
       } else {
-        m1Candles.push({ open: price, high: price, low: price, close: price, epoch: candleEpoch });
-        if (m1Candles.length > 300) m1Candles.shift();
+        st.m1Candles.push({ open: price, high: price, low: price, close: price, epoch: candleEpoch });
+        if (st.m1Candles.length > 300) st.m1Candles.shift();
       }
       dataReceived = true;
       setConnState(true, liveLabel());
-      recomputeM1();
+      recomputeSymbolM1(sym);
     }
   };
 
   sock.onclose = (e) => {
-    if (sock !== ws) return;               // stale socket, ignore
+    if (sock !== ws) return;
     clearInterval(pingTimer);
-    subscribedTicks = false;
+    subscribedTicksSet.clear();
     dataReceived = false;
     failCount++;
-    if (!gotData) endpointIdx++;           // never worked → try the next host
+    if (!gotData) endpointIdx++;
     const detail = `code ${e.code}${e.reason ? ' ' + e.reason : ''}`;
     setConnState(false, `reconnecting · ${detail} · ${ep.short}`);
     logLine(`socket closed (${detail}) on ${ep.name} — ${gotData ? 'retrying same host' : 'trying next host'}`, 'warn');
@@ -566,7 +575,6 @@ function connect(){
   sock.onerror = () => { try { sock.close(); } catch (e) {} };
 }
 
-// Watchdog: if the feed goes silent (common on mobile Safari after backgrounding), force a reconnect
 setInterval(() => {
   if (ws && ws.readyState === WebSocket.OPEN && Date.now() - lastMsgAt > STALE_MS) {
     logLine('feed stale — forcing reconnect', 'warn');
@@ -574,96 +582,46 @@ setInterval(() => {
   }
 }, 10000);
 
-function buildDropdownOptions(list){
-  symbolSelect.innerHTML = '';
-  list.forEach(v => {
-    const opt = document.createElement('option');
-    opt.value = v.symbol;
-    opt.textContent = v.name;
-    symbolSelect.appendChild(opt);
-  });
-  symbolSelect.disabled = false;
-}
-// Accepts both legacy (symbol / display_name) and new-API (underlying_symbol) shapes
-function sortVolList(symbols){
-  return symbols
-    .map(s => {
-      const sym = s.underlying_symbol || s.symbol;
-      const name = s.display_name || KNOWN_NAMES[sym] || '';
-      return { symbol: sym, name };
-    })
-    .filter(s => s.symbol && /^Volatility/i.test(s.name))
-    .map(s => ({ symbol: s.symbol, name: s.name, is1s: /\(1s\)/i.test(s.name), num: parseInt(s.name.replace(/\D+/g, ''), 10) || 0 }))
-    .sort((a, b) => (a.is1s - b.is1s) || (a.num - b.num));
-}
-function initialSymbolSetup(symbols){
-  const vols = sortVolList(symbols);
-  buildDropdownOptions(vols);
-  const preferred = vols.find(v => v.symbol === '1HZ90V') || vols[0];
-  if (preferred) {
-    symbolSelect.value = preferred.symbol;
-    SYMBOL = preferred.symbol;
-    DISPLAY_NAME = preferred.name;
-    mainTitle.textContent = `${DISPLAY_NAME} — SNIPER ORCHESTRATOR`;
-    subLine.textContent = `${DISPLAY_NAME} · H1 bias · M1 BOS/CHoCH + multi-zone retest`;
+setInterval(() => {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    Object.keys(symbolState).forEach(sym => fetchCandlesFor(sym, GRAN_H1, 200));
   }
-}
-function upgradeDropdownFromLive(symbols){
-  const vols = sortVolList(symbols);
-  if (!vols.length) return;
-  const currentValue = SYMBOL;
-  buildDropdownOptions(vols);
-  const stillPresent = vols.some(v => v.symbol === currentValue);
-  if (stillPresent) symbolSelect.value = currentValue;
-  else if (vols[0]) {
-    symbolSelect.value = vols[0].symbol;
-    SYMBOL = vols[0].symbol;
-    DISPLAY_NAME = vols[0].name;
-    loadSymbol(SYMBOL);
-  }
-}
-symbolSelect.addEventListener('change', () => {
-  SYMBOL = symbolSelect.value;
-  DISPLAY_NAME = symbolSelect.options[symbolSelect.selectedIndex].textContent;
-  loadSymbol(SYMBOL);
-});
-function loadSymbol(sym){
-  mainTitle.textContent = `${DISPLAY_NAME} — SNIPER ORCHESTRATOR`;
-  subLine.textContent = `${DISPLAY_NAME} · H1 bias · M1 BOS/CHoCH + multi-zone retest`;
-  if (subscribedTicks) wsSend({ forget_all: "ticks" });
-  subscribedTicks = false;
-  dataReceived = false;
-  h1Candles = [];
-  m1Candles = [];
-  h1Zone = 'NEUTRAL';
-  m1Zone = 'NEUTRAL';
-  activeTrade = null;
-  pendingSetup = null;
-  renderIdleBanner();
-  ['h1Price','h1SwingHigh','h1SwingLow','m1Price','m1SwingHigh','m1SwingLow','m1BreakType','m1Sweep','m1Zones'].forEach(id => {
-    document.getElementById(id).textContent = '—';
-  });
-  setConnState(false, 'loading ' + sym);
-  logLine(`loadSymbol ${sym}`, 'info');
-  fetchCandles(GRAN_H1, 200);
-  fetchCandles(GRAN_M1, 200);
-}
-function fetchCandles(granularity, count){
-  wsSend({
-    ticks_history: SYMBOL,
-    adjust_start_time: 1,
-    count, end: "latest",
-    granularity, style: "candles"
-  });
-}
+}, H1_REFRESH_MS);
 
+setInterval(() => { if (scannerDirty) { renderScanner(); scannerDirty = false; } }, 1000);
+
+function fetchCandlesFor(sym, granularity, count){
+  wsSend({ ticks_history: sym, adjust_start_time: 1, count, end: "latest", granularity, style: "candles" });
+}
+function subscribeTicksFor(sym){
+  wsSend({ ticks: sym, subscribe: 1 });
+}
+function loadAllSymbols(){
+  subscribedTicksSet.clear();
+  Object.keys(symbolState).forEach(sym => {
+    const st = symbolState[sym];
+    st.h1Candles = []; st.m1Candles = [];
+    fetchCandlesFor(sym, GRAN_H1, 200);
+    fetchCandlesFor(sym, GRAN_M1, 200);
+  });
+  scheduleScannerRender();
+  logLine(`scanning ${Object.keys(symbolState).length} instruments…`, 'info');
+}
+function refineNamesFromLive(list){
+  list.forEach(s => {
+    const sym = s.underlying_symbol || s.symbol;
+    if (symbolState[sym] && s.display_name) symbolState[sym].name = s.display_name;
+  });
+  scheduleScannerRender();
+}
+function scheduleScannerRender(){ scannerDirty = true; }
+
+//------------------------------------------------------------------
+// Notifications
+//------------------------------------------------------------------
 const notifyBtn = document.getElementById('notifyBtn');
 function refreshNotifyBtn(){
-  if (!('Notification' in window)) {
-    notifyBtn.textContent = '🔕 NOT SUPPORTED';
-    notifyBtn.disabled = true;
-    return;
-  }
+  if (!('Notification' in window)) { notifyBtn.textContent = '🔕 NOT SUPPORTED'; notifyBtn.disabled = true; return; }
   if (Notification.permission === 'granted') notifyBtn.textContent = '✅ NOTIFICATIONS ON';
   else if (Notification.permission === 'denied') notifyBtn.textContent = '🔕 BLOCKED';
   else notifyBtn.textContent = '🔔 ENABLE NOTIFICATIONS';
@@ -696,6 +654,9 @@ function fireAlert(title, body){
   sendTelegram(`${title}\n${body}`);
 }
 
+//------------------------------------------------------------------
+// Telegram
+//------------------------------------------------------------------
 const tgToken = document.getElementById('tgToken');
 const tgChatId = document.getElementById('tgChatId');
 const tgStatus = document.getElementById('tgStatus');
@@ -708,19 +669,14 @@ document.getElementById('tgSaveBtn').addEventListener('click', () => {
   tgStatus.style.color = 'var(--green)';
 });
 document.getElementById('tgTestBtn').addEventListener('click', () => {
-  sendTelegram('✅ Test alert from your P.A.T.+ICT+Retest dashboard.');
+  sendTelegram('✅ Test alert from your P.A.T.+ICT+Retest scanner.');
 });
 function sendTelegram(text){
   const token = (tgToken.value || localStorage.getItem('tg_token') || '').trim();
   const chatId = (tgChatId.value || localStorage.getItem('tg_chat_id') || '').trim();
-  if (!token || !chatId) {
-    tgStatus.textContent = 'Add a bot token and chat ID first.';
-    tgStatus.style.color = 'var(--amber)';
-    return;
-  }
+  if (!token || !chatId) { tgStatus.textContent = 'Add a bot token and chat ID first.'; tgStatus.style.color = 'var(--amber)'; return; }
   fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ chat_id: chatId, text })
   })
   .then(r => r.json())
@@ -731,6 +687,9 @@ function sendTelegram(text){
   .catch(err => { tgStatus.textContent = 'Send failed: ' + err.message; tgStatus.style.color = 'var(--red)'; });
 }
 
+//------------------------------------------------------------------
+// Structure engine (per-symbol data passed in — logic unchanged)
+//------------------------------------------------------------------
 function computeStructure(candles, lb, atrForSweep){
   const n = candles.length;
   if (n < lb * 2 + 3) {
@@ -871,182 +830,293 @@ function updateGaugeVisual(prefix, value, res){
   statusEl.textContent = label;
   statusEl.setAttribute('fill', color);
   document.getElementById(prefix + 'ValLabel').setAttribute('fill', color);
-  const bar = document.getElementById(prefix + 'Bar');
-  if (bar) {
-    bar.style.width = Math.max(8, value) + '%';
-    bar.style.background = color;
-  }
-  const agent = document.getElementById(prefix + 'AgentVal');
-  if (agent) agent.textContent = Math.round(value) + ' · ' + label;
 }
-function recomputeH1(){
-  const price = h1Candles[h1Candles.length - 1]?.close;
-  if (price !== undefined) document.getElementById('h1Price').textContent = price.toFixed(3);
-  const res = computeStructure(h1Candles, lookback);
-  document.getElementById('h1SwingHigh').textContent = res.lastSwingHigh !== null ? res.lastSwingHigh.toFixed(3) : '—';
-  document.getElementById('h1SwingLow').textContent  = res.lastSwingLow  !== null ? res.lastSwingLow.toFixed(3)  : '—';
-  if (h1Candles.length < lookback * 2 + 3) return;
-  const value = structureToValue(res, H1_DECAY_PER_BAR);
-  updateGaugeVisual('h1', value, res);
-  h1Zone = zoneOf(value);
+
+//------------------------------------------------------------------
+// Per-symbol recompute
+//------------------------------------------------------------------
+function recomputeSymbolH1(sym){
+  const st = symbolState[sym];
+  if (st.h1Candles.length < lookback * 2 + 3) { st.h1Res = null; scheduleScannerRender(); return; }
+  const res = computeStructure(st.h1Candles, lookback);
+  st.h1Res = res;
+  st.h1Value = structureToValue(res, H1_DECAY_PER_BAR);
+  st.h1Zone = zoneOf(st.h1Value);
+  updateFocusSelection();
+  if (sym === focusSymbol) renderFocusAll();
+  scheduleScannerRender();
 }
-function recomputeM1(){
-  const price = m1Candles[m1Candles.length - 1]?.close;
-  if (price !== undefined) document.getElementById('m1Price').textContent = price.toFixed(3);
-  const atr = computeATR(m1Candles, ATR_PERIOD);
-  const res = computeStructure(m1Candles, lookback, atr);
-  document.getElementById('m1SwingHigh').textContent = res.lastSwingHigh !== null ? res.lastSwingHigh.toFixed(3) : '—';
-  document.getElementById('m1SwingLow').textContent  = res.lastSwingLow  !== null ? res.lastSwingLow.toFixed(3)  : '—';
-  document.getElementById('m1BreakType').textContent = res.breakType || '—';
-  document.getElementById('m1Sweep').textContent = res.breakType ? (res.sweep ? 'YES' : 'no') : '—';
-  drawSpark();
-  if (m1Candles.length < lookback * 2 + 3) return;
-  const value = structureToValue(res, M1_DECAY_PER_BAR);
-  updateGaugeVisual('m1', value, res);
-  m1Zone = zoneOf(value);
-  manageTrade(res, atr);
+function recomputeSymbolM1(sym){
+  const st = symbolState[sym];
+  const atr = computeATR(st.m1Candles, ATR_PERIOD);
+  st.atr = atr;
+  if (st.m1Candles.length < lookback * 2 + 3) { st.m1Res = null; scheduleScannerRender(); return; }
+  const res = computeStructure(st.m1Candles, lookback, atr);
+  st.m1Res = res;
+  st.m1Value = structureToValue(res, M1_DECAY_PER_BAR);
+  st.m1Zone = zoneOf(st.m1Value);
+  manageSymbolTrade(sym, res, atr);
+  updateFocusSelection();
+  if (sym === focusSymbol) renderFocusAll();
+  scheduleScannerRender();
 }
-function renderIdleBanner(){
-  const banner = document.getElementById('sniperBanner');
-  const sub = banner.querySelector('.sniper-sub');
-  const stats = document.getElementById('tpStats');
-  banner.classList.remove('buy', 'sell', 'tp', 'sl', 'armed');
-  banner.firstChild.textContent = 'NO ALIGNMENT — WAIT ';
-  sub.textContent = 'H1 trend and M1 timing are not agreeing';
-  stats.style.display = 'none';
-  document.getElementById('m1Zones').textContent = '—';
-  document.getElementById('statOpenR').textContent = 'FLAT';
-}
-function renderArmedBanner(zones){
-  const banner = document.getElementById('sniperBanner');
-  const sub = banner.querySelector('.sniper-sub');
-  banner.classList.remove('buy', 'sell', 'tp', 'sl');
-  banner.classList.add('armed');
-  banner.firstChild.textContent = `ARMED: ${pendingSetup.direction} — WAITING FOR CONFIRMATION `;
-  const tag = pendingSetup.breakType === 'CHOCH' ? 'CHoCH' : 'BOS';
-  const sweepTag = pendingSetup.sweep ? ' + liquidity sweep' : '';
-  const zoneText = (zones && zones.length)
-    ? zones.map(z => `${z.type} ${z.low.toFixed(3)}–${z.high.toFixed(3)}`).join(' · ')
-    : 'computing zones…';
-  sub.textContent = `${tag}${sweepTag} · watching: ${zoneText}`;
-  document.getElementById('m1Zones').textContent = (zones && zones.length) ? zones.map(z => z.type).join(', ') : '—';
-}
-function closePaper(kind, price){
-  if (!activeTrade) return;
-  const r = activeTrade.direction === 'BUY'
-    ? (price - activeTrade.entryPrice) / Math.abs(activeTrade.entryPrice - activeTrade.sl)
-    : (activeTrade.entryPrice - price) / Math.abs(activeTrade.sl - activeTrade.entryPrice);
+
+//------------------------------------------------------------------
+// Per-symbol trade management
+//------------------------------------------------------------------
+function closePaper(sym, kind, price){
+  const st = symbolState[sym];
+  const t = st.activeTrade;
+  if (!t) return;
+  const r = t.direction === 'BUY'
+    ? (price - t.entryPrice) / Math.abs(t.entryPrice - t.sl)
+    : (t.entryPrice - price) / Math.abs(t.sl - t.entryPrice);
   session.pnlR += r;
   if (r >= 0) session.wins++; else session.losses++;
-  session.fills.unshift({ t: ts(), side: activeTrade.direction, entry: activeTrade.entryPrice.toFixed(3), result: kind + ' ' + r.toFixed(2) + 'R' });
-  document.getElementById('statLast').textContent = kind;
+  session.fills.unshift({ t: ts(), side: `${t.direction} ${shortSym(st.name)}`, entry: t.entryPrice.toFixed(3), result: kind + ' ' + r.toFixed(2) + 'R' });
+  document.getElementById('statLast').textContent = `${kind} ${shortSym(st.name)}`;
   renderSession();
 }
-function manageTrade(m1res, atr){
-  const banner = document.getElementById('sniperBanner');
-  const sub = banner.querySelector('.sniper-sub');
-  const stats = document.getElementById('tpStats');
-  const price = m1Candles[m1Candles.length - 1]?.close;
+function manageSymbolTrade(sym, m1res, atr){
+  const st = symbolState[sym];
+  const price = st.m1Candles[st.m1Candles.length - 1]?.close;
   if (price === undefined) return;
 
-  if (activeTrade) {
-    document.getElementById('statOpenR').textContent = activeTrade.direction;
-    const hitSL = activeTrade.direction === 'BUY' ? price <= activeTrade.sl : price >= activeTrade.sl;
+  if (st.activeTrade) {
+    const t = st.activeTrade;
+    const hitSL = t.direction === 'BUY' ? price <= t.sl : price >= t.sl;
     if (hitSL) {
-      fireAlert(`🛑 SL HIT — Exit ${activeTrade.direction}`, `${DISPLAY_NAME}: stopped out at ${price.toFixed(3)} (SL ${activeTrade.sl.toFixed(3)})`);
-      banner.classList.remove('buy','sell','armed');
-      banner.classList.add('sl');
-      banner.firstChild.textContent = `SL HIT — EXIT ${activeTrade.direction} `;
-      sub.textContent = `Stopped out at ${price.toFixed(3)}`;
-      closePaper('SL', price);
-      activeTrade = null;
-      stats.style.display = 'none';
+      fireAlert(`🛑 SL HIT — Exit ${t.direction} (${shortSym(st.name)})`, `${st.name}: stopped out at ${price.toFixed(3)} (SL ${t.sl.toFixed(3)})`);
+      closePaper(sym, 'SL', price);
+      st.activeTrade = null;
       return;
     }
-    const favorable = (target) => activeTrade.direction === 'BUY' ? price >= target : price <= target;
-    if (!activeTrade.hit1 && favorable(activeTrade.tp1)) {
-      activeTrade.hit1 = true;
-      document.getElementById('tp1Stat').classList.add('hit');
-      fireAlert(`✅ TP1 HIT — ${activeTrade.direction}`, `${DISPLAY_NAME}: TP1 reached at ${price.toFixed(3)}`);
+    const favorable = (target) => t.direction === 'BUY' ? price >= target : price <= target;
+    if (!t.hit1 && favorable(t.tp1)) { t.hit1 = true; fireAlert(`✅ TP1 HIT — ${t.direction} (${shortSym(st.name)})`, `${st.name}: TP1 reached at ${price.toFixed(3)}`); }
+    if (!t.hit2 && favorable(t.tp2)) { t.hit2 = true; fireAlert(`✅ TP2 HIT — ${t.direction} (${shortSym(st.name)})`, `${st.name}: TP2 reached at ${price.toFixed(3)}`); }
+    if (!t.hit3 && favorable(t.tp3)) {
+      t.hit3 = true;
+      fireAlert(`✅ TP3 HIT — FULL EXIT ${t.direction} (${shortSym(st.name)})`, `${st.name}: TP3 reached at ${price.toFixed(3)} — setup complete`);
+      closePaper(sym, 'TP3', price);
+      st.activeTrade = null;
     }
-    if (!activeTrade.hit2 && favorable(activeTrade.tp2)) {
-      activeTrade.hit2 = true;
-      document.getElementById('tp2Stat').classList.add('hit');
-      fireAlert(`✅ TP2 HIT — ${activeTrade.direction}`, `${DISPLAY_NAME}: TP2 reached at ${price.toFixed(3)}`);
-    }
-    if (!activeTrade.hit3 && favorable(activeTrade.tp3)) {
-      activeTrade.hit3 = true;
-      document.getElementById('tp3Stat').classList.add('hit');
-      fireAlert(`✅ TP3 HIT — FULL EXIT ${activeTrade.direction}`, `${DISPLAY_NAME}: TP3 reached at ${price.toFixed(3)} — setup complete`);
-      banner.classList.remove('buy','sell','armed');
-      banner.classList.add('tp');
-      banner.firstChild.textContent = `TP3 HIT — EXIT ${activeTrade.direction} `;
-      sub.textContent = `All targets reached at ${price.toFixed(3)}`;
-      closePaper('TP3', price);
-      activeTrade = null;
-      stats.style.display = 'none';
-      return;
-    }
-    sub.textContent = `Last ${price.toFixed(3)} · holding ${activeTrade.direction} · SL ${activeTrade.sl.toFixed(3)}`;
     return;
   }
 
   const isFreshBreakThisBar = m1res.barsSinceBos === 0 && m1res.breakType !== null;
   const m1Direction = m1res.state === 1 ? 'BUY' : m1res.state === -1 ? 'SELL' : null;
-  if (isFreshBreakThisBar && m1Direction && h1Zone === m1Direction) {
-    pendingSetup = { direction: m1Direction, breakType: m1res.breakType, sweep: m1res.sweep, impulseStart: m1res.impulseStart };
-    logLine(`ARMED ${m1Direction} ${m1res.breakType}${m1res.sweep ? ' + sweep' : ''}`, m1Direction === 'BUY' ? 'buy' : 'sell');
-  } else if (pendingSetup) {
-    if (h1Zone !== pendingSetup.direction) pendingSetup = null;
-    else if (m1Direction && m1Direction !== pendingSetup.direction) pendingSetup = null;
+  if (isFreshBreakThisBar && m1Direction && st.h1Zone === m1Direction) {
+    st.pendingSetup = { direction: m1Direction, breakType: m1res.breakType, sweep: m1res.sweep, impulseStart: m1res.impulseStart };
+    logLine(`[${shortSym(st.name)}] ARMED ${m1Direction} ${m1res.breakType}${m1res.sweep ? ' + sweep' : ''}`, m1Direction === 'BUY' ? 'buy' : 'sell');
+  } else if (st.pendingSetup) {
+    if (st.h1Zone !== st.pendingSetup.direction) st.pendingSetup = null;
+    else if (m1Direction && m1Direction !== st.pendingSetup.direction) st.pendingSetup = null;
   }
 
-  if (pendingSetup) {
-    const closedCandle = m1Candles.length >= 2 ? m1Candles[m1Candles.length - 2] : null;
-    const zones = atr ? getCandidateZones(pendingSetup.direction, m1res, atr, m1Candles.length - 1) : [];
+  if (st.pendingSetup) {
+    const closedCandle = st.m1Candles.length >= 2 ? st.m1Candles[st.m1Candles.length - 2] : null;
+    const zones = atr ? getCandidateZones(st.pendingSetup.direction, m1res, atr, st.m1Candles.length - 1) : [];
     let triggeredZone = null;
     if (atr) {
       for (const z of zones) {
-        if (isConfirmationCandle(closedCandle, pendingSetup.direction, z.low, z.high, atr)) { triggeredZone = z; break; }
+        if (isConfirmationCandle(closedCandle, st.pendingSetup.direction, z.low, z.high, atr)) { triggeredZone = z; break; }
       }
     }
     if (triggeredZone && closedCandle && atr) {
-      const dir = pendingSetup.direction;
+      const dir = st.pendingSetup.direction;
       const step = atr * tpStep;
       const sign = dir === 'BUY' ? 1 : -1;
       const entryPrice = closedCandle.close;
       const sl = computeSL(dir, entryPrice, atr, slBufferMult);
-      const tag = pendingSetup.breakType === 'CHOCH' ? 'CHoCH' : 'BOS';
-      const sweepTag = pendingSetup.sweep ? ' + liquidity sweep' : '';
-      activeTrade = {
+      const tag = st.pendingSetup.breakType === 'CHOCH' ? 'CHoCH' : 'BOS';
+      const sweepTag = st.pendingSetup.sweep ? ' + liquidity sweep' : '';
+      st.activeTrade = {
         direction: dir, entryPrice, sl,
         tp1: entryPrice + sign * step, tp2: entryPrice + sign * 2 * step, tp3: entryPrice + sign * 3 * step,
         hit1: false, hit2: false, hit3: false
       };
       session.setups++;
       renderSession();
-      stats.style.display = 'flex';
-      document.getElementById('slStat').textContent = sl.toFixed(3);
-      document.getElementById('entryStat').textContent = entryPrice.toFixed(3);
-      document.getElementById('tp1Stat').textContent = activeTrade.tp1.toFixed(3);
-      document.getElementById('tp2Stat').textContent = activeTrade.tp2.toFixed(3);
-      document.getElementById('tp3Stat').textContent = activeTrade.tp3.toFixed(3);
-      ['tp1Stat','tp2Stat','tp3Stat'].forEach(id => document.getElementById(id).classList.remove('hit'));
-      banner.classList.remove('armed','tp','sl');
-      banner.classList.add(dir === 'BUY' ? 'buy' : 'sell');
-      banner.firstChild.textContent = `SNIPER ENTRY: ${dir} `;
-      sub.textContent = `${tag}${sweepTag} · ${triggeredZone.type} retest confirmed · SL ${sl.toFixed(3)}`;
-      fireAlert(`🎯 SNIPER ENTRY: ${dir} (${tag}${sweepTag})`, `${DISPLAY_NAME}: entry ${entryPrice.toFixed(3)} on ${triggeredZone.type} retest\nSL ${sl.toFixed(3)} · TP1 ${activeTrade.tp1.toFixed(3)} · TP2 ${activeTrade.tp2.toFixed(3)} · TP3 ${activeTrade.tp3.toFixed(3)}`);
-      pendingSetup = null;
-      return;
+      fireAlert(`🎯 SNIPER ENTRY: ${dir} (${tag}${sweepTag}) — ${shortSym(st.name)}`, `${st.name}: entry ${entryPrice.toFixed(3)} on ${triggeredZone.type} retest\nSL ${sl.toFixed(3)} · TP1 ${st.activeTrade.tp1.toFixed(3)} · TP2 ${st.activeTrade.tp2.toFixed(3)} · TP3 ${st.activeTrade.tp3.toFixed(3)}`);
+      st.pendingSetup = null;
     }
-    renderArmedBanner(zones);
-    return;
   }
-  renderIdleBanner();
 }
 
-setInterval(() => { if (ws && ws.readyState === WebSocket.OPEN && SYMBOL) fetchCandles(GRAN_H1, 200); }, H1_REFRESH_MS);
+//------------------------------------------------------------------
+// Auto-focus selection
+//------------------------------------------------------------------
+function alignScore(sym){
+  const st = symbolState[sym];
+  return Math.abs(st.h1Value - 50) + Math.abs(st.m1Value - 50);
+}
+function updateFocusSelection(){
+  const syms = Object.keys(symbolState);
+  const entries = syms.filter(s => symbolState[s].activeTrade);
+  const armed = syms.filter(s => symbolState[s].pendingSetup);
+  const aligned = syms
+    .filter(s => symbolState[s].m1Res && symbolState[s].h1Zone !== 'NEUTRAL' && symbolState[s].h1Zone === symbolState[s].m1Zone)
+    .sort((a, b) => alignScore(b) - alignScore(a));
+
+  if (pinnedSymbol && symbolState[pinnedSymbol]) {
+    const s = pinnedSymbol;
+    const level = entries.includes(s) ? 'entry' : armed.includes(s) ? 'armed' : aligned.includes(s) ? 'aligned' : 'watching';
+    if (focusSymbol !== s || focusLevel !== level) { focusSymbol = s; focusLevel = level; renderFocusAll(); }
+    return;
+  }
+
+  let newLevel = null, pool = [];
+  if (entries.length) { newLevel = 'entry'; pool = entries; }
+  else if (armed.length) { newLevel = 'armed'; pool = armed; }
+  else if (aligned.length) { newLevel = 'aligned'; pool = aligned; }
+
+  let target;
+  if (focusSymbol && pool.includes(focusSymbol)) target = focusSymbol; // sticky
+  else target = pool[0] || null;
+
+  if (target !== focusSymbol || newLevel !== focusLevel) {
+    focusSymbol = target;
+    focusLevel = newLevel;
+    renderFocusAll();
+  }
+}
+
+//------------------------------------------------------------------
+// Focus panel rendering
+//------------------------------------------------------------------
+function renderFocusAll(){
+  const st = focusSymbol && symbolState[focusSymbol];
+  const n = Object.keys(symbolState).length;
+  mainTitle.textContent = st ? `${st.name} — SNIPER SCANNER` : 'SNIPER SCANNER — SCANNING…';
+  subLine.textContent = st
+    ? `${focusLevel === 'entry' ? 'LIVE ENTRY' : focusLevel === 'armed' ? 'ARMED SETUP' : focusLevel === 'aligned' ? 'ALIGNED, WATCHING' : 'PINNED'} · ${n} instruments scanned`
+    : `Scanning ${n} instruments for aligned H1/M1 setups…`;
+  renderFocusH1();
+  renderFocusM1();
+  renderFocusBanner();
+}
+function renderFocusH1(){
+  const st = focusSymbol && symbolState[focusSymbol];
+  if (!st) {
+    document.getElementById('h1Price').textContent = '—';
+    document.getElementById('h1SwingHigh').textContent = '—';
+    document.getElementById('h1SwingLow').textContent = '—';
+    updateGaugeVisual('h1', 50, null);
+    return;
+  }
+  const price = st.h1Candles[st.h1Candles.length - 1]?.close;
+  document.getElementById('h1Price').textContent = price !== undefined ? price.toFixed(3) : '—';
+  document.getElementById('h1SwingHigh').textContent = st.h1Res && st.h1Res.lastSwingHigh !== null ? st.h1Res.lastSwingHigh.toFixed(3) : '—';
+  document.getElementById('h1SwingLow').textContent = st.h1Res && st.h1Res.lastSwingLow !== null ? st.h1Res.lastSwingLow.toFixed(3) : '—';
+  updateGaugeVisual('h1', st.h1Res ? st.h1Value : 50, st.h1Res);
+}
+function renderFocusM1(){
+  const st = focusSymbol && symbolState[focusSymbol];
+  if (!st) {
+    document.getElementById('m1Price').textContent = '—';
+    document.getElementById('m1SwingHigh').textContent = '—';
+    document.getElementById('m1SwingLow').textContent = '—';
+    document.getElementById('m1BreakType').textContent = '—';
+    document.getElementById('m1Sweep').textContent = '—';
+    updateGaugeVisual('m1', 50, null);
+    drawSpark();
+    return;
+  }
+  const price = st.m1Candles[st.m1Candles.length - 1]?.close;
+  document.getElementById('m1Price').textContent = price !== undefined ? price.toFixed(3) : '—';
+  document.getElementById('m1SwingHigh').textContent = st.m1Res && st.m1Res.lastSwingHigh !== null ? st.m1Res.lastSwingHigh.toFixed(3) : '—';
+  document.getElementById('m1SwingLow').textContent = st.m1Res && st.m1Res.lastSwingLow !== null ? st.m1Res.lastSwingLow.toFixed(3) : '—';
+  document.getElementById('m1BreakType').textContent = st.m1Res && st.m1Res.breakType ? st.m1Res.breakType : '—';
+  document.getElementById('m1Sweep').textContent = st.m1Res && st.m1Res.breakType ? (st.m1Res.sweep ? 'YES' : 'no') : '—';
+  updateGaugeVisual('m1', st.m1Res ? st.m1Value : 50, st.m1Res);
+  drawSpark();
+}
+function renderFocusBanner(){
+  const banner = document.getElementById('sniperBanner');
+  const sub = banner.querySelector('.sniper-sub');
+  const stats = document.getElementById('tpStats');
+  banner.classList.remove('buy', 'sell', 'tp', 'sl', 'armed');
+
+  if (!focusSymbol) {
+    const n = Object.keys(symbolState).length;
+    banner.firstChild.textContent = 'SCANNING — NO ALIGNED SETUP YET ';
+    sub.textContent = `Watching ${n} instruments for H1/M1 alignment`;
+    stats.style.display = 'none';
+    return;
+  }
+  const st = symbolState[focusSymbol];
+  const name = st.name;
+
+  if (st.activeTrade) {
+    const t = st.activeTrade;
+    banner.classList.add(t.direction === 'BUY' ? 'buy' : 'sell');
+    banner.firstChild.textContent = `SNIPER ENTRY: ${t.direction} — ${name} `;
+    const price = st.m1Candles[st.m1Candles.length - 1]?.close;
+    sub.textContent = price !== undefined ? `Last ${price.toFixed(3)} · holding ${t.direction} · SL ${t.sl.toFixed(3)}` : `Holding ${t.direction} · SL ${t.sl.toFixed(3)}`;
+    stats.style.display = 'flex';
+    document.getElementById('slStat').textContent = t.sl.toFixed(3);
+    document.getElementById('entryStat').textContent = t.entryPrice.toFixed(3);
+    document.getElementById('tp1Stat').textContent = t.tp1.toFixed(3);
+    document.getElementById('tp2Stat').textContent = t.tp2.toFixed(3);
+    document.getElementById('tp3Stat').textContent = t.tp3.toFixed(3);
+    const flags = [t.hit1, t.hit2, t.hit3];
+    ['tp1Stat', 'tp2Stat', 'tp3Stat'].forEach((id, i) => document.getElementById(id).classList.toggle('hit', flags[i]));
+  } else if (st.pendingSetup) {
+    banner.classList.add('armed');
+    banner.firstChild.textContent = `ARMED: ${st.pendingSetup.direction} — ${name} `;
+    const tag = st.pendingSetup.breakType === 'CHOCH' ? 'CHoCH' : 'BOS';
+    const sweepTag = st.pendingSetup.sweep ? ' + liquidity sweep' : '';
+    const zones = (st.atr && st.m1Res) ? getCandidateZones(st.pendingSetup.direction, st.m1Res, st.atr, st.m1Candles.length - 1) : [];
+    const zoneText = zones.length ? zones.map(z => `${z.type} ${z.low.toFixed(3)}–${z.high.toFixed(3)}`).join(' · ') : 'computing zones…';
+    sub.textContent = `${tag}${sweepTag} · watching: ${zoneText}`;
+    stats.style.display = 'none';
+  } else {
+    banner.firstChild.textContent = `${name} ALIGNED — WATCHING FOR BREAK `;
+    sub.textContent = `H1 ${Math.round(st.h1Value)} · M1 ${Math.round(st.m1Value)} · same direction, no fresh structure break yet`;
+    stats.style.display = 'none';
+  }
+}
+
+//------------------------------------------------------------------
+// Scanner list
+//------------------------------------------------------------------
+function renderScanner(){
+  const rows = Object.keys(symbolState).map(sym => {
+    const st = symbolState[sym];
+    let rank = 0, status = '—';
+    if (st.activeTrade) { rank = 3; status = `ENTRY ${st.activeTrade.direction}`; }
+    else if (st.pendingSetup) { rank = 2; status = `ARMED ${st.pendingSetup.direction}`; }
+    else if (st.m1Res && st.h1Zone !== 'NEUTRAL' && st.h1Zone === st.m1Zone) { rank = 1; status = `ALIGNED ${st.h1Zone}`; }
+    const score = rank * 1000 + (st.h1Res ? Math.abs(st.h1Value - 50) : 0) + (st.m1Res ? Math.abs(st.m1Value - 50) : 0);
+    return { sym, name: shortSym(st.name), h1: st.h1Res ? Math.round(st.h1Value) : null, m1: st.m1Res ? Math.round(st.m1Value) : null, status, rank, score };
+  }).sort((a, b) => b.score - a.score);
+
+  const body = document.getElementById('scanBody');
+  body.innerHTML = rows.map(r => `
+    <div class="scan-row ${r.sym === focusSymbol ? 'focused' : ''} ${r.rank === 3 ? 'r-entry' : r.rank === 2 ? 'r-armed' : r.rank === 1 ? 'r-aligned' : ''}" data-sym="${r.sym}">
+      <span>${r.name}</span><span>${r.h1 === null ? '—' : r.h1}</span><span>${r.m1 === null ? '—' : r.m1}</span><span>${r.status}</span>
+    </div>
+  `).join('');
+  body.querySelectorAll('.scan-row').forEach(el => {
+    el.addEventListener('click', () => {
+      const s = el.getAttribute('data-sym');
+      pinnedSymbol = (pinnedSymbol === s) ? null : s;
+      updateFocusSelection();
+      renderPinLabel();
+    });
+  });
+
+  document.getElementById('scanCount').textContent =
+    `${rows.length} scanned · ${rows.filter(r => r.rank >= 1).length} aligned · ${rows.filter(r => r.rank === 2).length} armed · ${rows.filter(r => r.rank === 3).length} live`;
+  renderPinLabel();
+}
+function renderPinLabel(){
+  const el = document.getElementById('pinLabel');
+  el.textContent = pinnedSymbol ? `PINNED: ${shortSym(symbolState[pinnedSymbol]?.name || pinnedSymbol)} (tap row again to release)` : 'AUTO — tap a row to pin';
+}
+
+renderSession();
+renderFocusAll();
 connect();
 </script>
 </body>
