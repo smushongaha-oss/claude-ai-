@@ -182,16 +182,16 @@
         <div class="split">
           <div>
             <label for="lookbackInput">SWING LB</label>
-            <input type="number" id="lookbackInput" min="2" max="15" value="5">
+            <input type="number" id="lookbackInput" min="2" max="15" value="10">
           </div>
           <div>
             <label for="tpMultInput">TP × ATR</label>
-            <input type="number" id="tpMultInput" min="0.5" max="5" step="0.5" value="1">
+            <input type="number" id="tpMultInput" min="0.5" max="5" step="0.5" value="1.5">
           </div>
         </div>
         <div>
           <label for="slBufferInput">SL DISTANCE × ATR</label>
-          <input type="number" id="slBufferInput" min="0.25" max="3" step="0.25" value="1">
+          <input type="number" id="slBufferInput" min="0.25" max="3" step="0.25" value="1.5">
         </div>
         <button id="notifyBtn">🔔 ENABLE NOTIFICATIONS</button>
       </div>
@@ -303,8 +303,9 @@
       <div class="footer-note">
         P.A.T. + ICT + Retest monitor only — no orders are sent to Deriv.
         Scans all 13 Volatility instruments at once: H1 sets bias per instrument, a fresh M1 BOS/CHoCH matching that bias arms a setup, entry fires on zone touch + confirmation candle.
+        Swing lookback defaults to 10 (fewer, larger, more meaningful structure breaks). TP/SL default to 1.5× ATR(14) for more breathing room before stop-out.
         The dashboard auto-focuses on a live entry, else an armed setup, else the best H1/M1-aligned instrument, else keeps scanning. Tap any row in the scanner list to pin it manually.
-        SL and TP1–3 are ATR(14) multiples. Validate in a tester before risking funds.
+        Validate in a tester before risking funds.
       </div>
     </section>
   </div>
@@ -365,9 +366,9 @@ let pingTimer = null;
 let lastMsgAt = Date.now();
 let subscribedTicksSet = new Set();
 let dataReceived = false;
-let lookback = 5;
-let tpStep = 1;
-let slBufferMult = 1;
+let lookback = 10;
+let tpStep = 1.5;
+let slBufferMult = 1.5;
 let session = { setups: 0, wins: 0, losses: 0, pnlR: 0, fills: [] };
 
 let focusSymbol = null;
@@ -385,7 +386,7 @@ const slBufferInput = document.getElementById('slBufferInput');
 
 lookbackInput.addEventListener('change', () => {
   const v = parseInt(lookbackInput.value, 10);
-  lookback = Number.isFinite(v) && v >= 2 ? Math.min(15, v) : 5;
+  lookback = Number.isFinite(v) && v >= 2 ? Math.min(15, v) : 10;
   Object.keys(symbolState).forEach(sym => { recomputeSymbolH1(sym); recomputeSymbolM1(sym); });
   updateFocusSelection();
   renderFocusAll();
@@ -393,11 +394,11 @@ lookbackInput.addEventListener('change', () => {
 });
 tpMultInput.addEventListener('change', () => {
   const v = parseFloat(tpMultInput.value);
-  tpStep = Number.isFinite(v) && v > 0 ? v : 1;
+  tpStep = Number.isFinite(v) && v > 0 ? v : 1.5;
 });
 slBufferInput.addEventListener('change', () => {
   const v = parseFloat(slBufferInput.value);
-  slBufferMult = Number.isFinite(v) && v > 0 ? v : 1;
+  slBufferMult = Number.isFinite(v) && v > 0 ? v : 1.5;
 });
 
 function setConnState(live, label){
@@ -688,7 +689,7 @@ function sendTelegram(text){
 }
 
 //------------------------------------------------------------------
-// Structure engine (per-symbol data passed in — logic unchanged)
+// Structure engine
 //------------------------------------------------------------------
 function computeStructure(candles, lb, atrForSweep){
   const n = candles.length;
