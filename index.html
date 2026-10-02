@@ -305,6 +305,7 @@
         Swing lookback is adjustable 10–80 (default 10; higher = fewer, larger, more meaningful structure breaks, at the cost of slower/rarer signals). TP/SL default to 1.5× ATR(14) for more breathing room before stop-out.
         SL exits in the paper tracker are capped at exactly -1R (as a resting stop order would fill), rather than recording whatever price the next tick happened to land on.
         The dashboard auto-focuses on a live entry, else an armed setup, else the best H1/M1-aligned instrument, else keeps scanning. Tap any row in the scanner list to pin it manually.
+        If the tab gets backgrounded (phone locks, app-switch, low battery / Low Power Mode throttling), the feed may disconnect — it reconnects automatically, and reconnects immediately the moment you bring this tab back to the foreground.
         Validate in a tester before risking funds.
       </div>
     </section>
@@ -365,6 +366,7 @@ let currentEp = WS_ENDPOINTS[0];
 let endpointIdx = 0;
 let failCount = 0;
 let pingTimer = null;
+let reconnectTimer = null;
 let lastMsgAt = Date.now();
 let subscribedTicksSet = new Set();
 let dataReceived = false;
@@ -465,6 +467,7 @@ function drawSpark(){
 // Connection
 //------------------------------------------------------------------
 function connect(){
+  clearTimeout(reconnectTimer);
   const ep = WS_ENDPOINTS[endpointIdx % WS_ENDPOINTS.length];
   currentEp = ep;
   setConnState(false, (failCount ? 'retrying · ' : 'connecting · ') + ep.short);
@@ -475,7 +478,7 @@ function connect(){
   } catch (e) {
     logLine(`WebSocket create failed (${ep.name}): ${e.message}`, 'warn');
     failCount++; endpointIdx++;
-    setTimeout(connect, 5000);
+    reconnectTimer = setTimeout(connect, 5000);
     return;
   }
   ws = sock;
@@ -573,11 +576,26 @@ function connect(){
     const detail = `code ${e.code}${e.reason ? ' ' + e.reason : ''}`;
     setConnState(false, `reconnecting · ${detail} · ${ep.short}`);
     logLine(`socket closed (${detail}) on ${ep.name} — ${gotData ? 'retrying same host' : 'trying next host'}`, 'warn');
-    setTimeout(connect, Math.min(2000 * failCount, 10000));
+    reconnectTimer = setTimeout(connect, Math.min(2000 * failCount, 10000));
   };
 
   sock.onerror = () => { try { sock.close(); } catch (e) {} };
 }
+
+// If the tab was backgrounded (phone locked, app-switched, or throttled by
+// low-battery / Low Power Mode) the socket can die silently without the
+// watchdog noticing for up to STALE_MS. The moment the tab is foregrounded
+// again, check immediately rather than waiting out the normal backoff —
+// this is the single biggest lever for a phone running this unattended.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING || Date.now() - lastMsgAt > STALE_MS) {
+      logLine('tab back in foreground — reconnecting now', 'info');
+      failCount = 0;
+      connect();
+    }
+  }
+});
 
 setInterval(() => {
   if (ws && ws.readyState === WebSocket.OPEN && Date.now() - lastMsgAt > STALE_MS) {
